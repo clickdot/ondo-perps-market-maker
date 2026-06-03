@@ -71,7 +71,8 @@ class OndoPerpsClient:
                 if symbol.replace("-USD", "") in pair["market"]:
                     # Return the oracle price if available, else index price
                     price = pair.get("oraclePrice") or pair.get("indexPrice")
-                    return {"price": price}
+                    base_increment = float(pair.get("baseIncrement", 0.01))
+                    return {"price": price, "base_increment": base_increment}
                     
         raise ValueError(f"Symbol {symbol} not found in /markets response")
 

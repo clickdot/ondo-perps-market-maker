@@ -36,6 +36,12 @@ def run_bot():
             try:
                 market_data = client.get_market_data(config.TOKEN_SYMBOL)
                 price_val = market_data.get("price")
+                base_increment = market_data.get("base_increment", 0.01)
+                
+                # Snap order size to base_increment
+                decimals = len(str(base_increment).split('.')[-1]) if '.' in str(base_increment) else 0
+                snapped_size = round(max(base_increment, round(config.ORDER_SIZE / base_increment) * base_increment), decimals)
+                
                 if price_val is None:
                     # If market is closed or testnet has no price, use a fallback for testing
                     logger.warning("Price is None (market might be closed). Using 312.24 for testing based on fair price.")
@@ -45,7 +51,7 @@ def run_bot():
                     
                 if current_price <= 0:
                     raise ValueError("Invalid price returned from API")
-                logger.info(f"Current price for {config.TOKEN_SYMBOL}: {current_price}")
+                logger.info(f"Current price for {config.TOKEN_SYMBOL}: {current_price} | Snapped Size: {snapped_size}")
             except Exception as e:
                 logger.error(f"Failed to fetch market data: {e}")
                 time.sleep(config.INTERVAL)
@@ -69,7 +75,7 @@ def run_bot():
                     side="BUY",
                     order_type="LIMIT",
                     price=bid_price,
-                    size=config.ORDER_SIZE
+                    size=snapped_size
                 )
                 # Place ASK
                 client.place_order(
@@ -77,7 +83,7 @@ def run_bot():
                     side="SELL",
                     order_type="LIMIT",
                     price=ask_price,
-                    size=config.ORDER_SIZE
+                    size=snapped_size
                 )
             except Exception as e:
                 logger.error(f"Failed to place orders: {e}")
