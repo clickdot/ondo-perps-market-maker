@@ -59,22 +59,26 @@ class OndoPerpsClient:
 
     def get_market_data(self, symbol: str):
         """
-        Fetches the current market data for a given token symbol from the /markets endpoint.
+        Fetches the current market data and live price for a given token symbol.
         """
-        endpoint = "/markets"
-        data = self._request("GET", endpoint)
+        market = f"{symbol}.P" if not symbol.endswith(".P") else symbol
         
-        # Search for the specific perp market in the response
-        if "result" in data and "perps" in data["result"]:
-            for pair in data["result"]["perps"]["tradingPairs"]:
-                # Ondo Perps symbols look like BTC-USD.P
+        # 1. Fetch live mark price
+        price = None
+        price_data = self._request("GET", "/perps/mark_prices")
+        if "result" in price_data and market in price_data["result"]:
+            price = price_data["result"][market].get("price") or price_data["result"][market].get("markPrice")
+            
+        # 2. Fetch base increment from market metadata
+        base_increment = 0.01
+        meta_data = self._request("GET", "/markets")
+        if "result" in meta_data and "perps" in meta_data["result"]:
+            for pair in meta_data["result"]["perps"]["tradingPairs"]:
                 if symbol.replace("-USD", "") in pair["market"]:
-                    # Return the oracle price if available, else index price
-                    price = pair.get("oraclePrice") or pair.get("indexPrice")
                     base_increment = float(pair.get("baseIncrement", 0.01))
-                    return {"price": price, "base_increment": base_increment}
+                    break
                     
-        raise ValueError(f"Symbol {symbol} not found in /markets response")
+        return {"price": price, "base_increment": base_increment}
 
     def place_order(self, symbol: str, side: str, order_type: str, price: float, size: float):
         """
