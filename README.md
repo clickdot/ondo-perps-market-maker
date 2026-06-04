@@ -7,6 +7,7 @@ A Python-based market making bot for the Ondo Perps API. It continuously places 
 - Automatically cancels open orders before placing new ones to manage margin limits.
 - Configurable spread, order size, and trading pairs.
 - Graceful handling of after-hours market closures by falling back to fair price indexing.
+- **Max Position Limits**: Automatically monitors your open positions and shifts into a reduce-only mode (halting bids or asks) when a defined maximum exposure is reached.
 
 ## Setup
 1. Install dependencies: 

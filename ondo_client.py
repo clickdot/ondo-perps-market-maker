@@ -117,3 +117,17 @@ class OndoPerpsClient:
         if symbol:
             params["market"] = f"{symbol}.P" if not symbol.endswith(".P") else symbol
         return self._request("GET", endpoint, params=params)
+
+    def get_position(self, symbol: str):
+        """
+        Gets the current open position for a given symbol.
+        Returns the position dict if it exists, otherwise None.
+        """
+        endpoint = "/perps/positions"
+        market = f"{symbol}.P" if not symbol.endswith(".P") else symbol
+        response = self._request("GET", endpoint)
+        if "result" in response:
+            for position in response["result"]:
+                if position.get("market") == market:
+                    return position
+        return None

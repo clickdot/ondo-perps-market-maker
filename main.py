@@ -57,34 +57,56 @@ def run_bot():
                 time.sleep(config.INTERVAL)
                 continue
 
-            # 3. Calculate Bid and Ask quotes
+            # 3. Check position logic for Max Position
+            place_bid = True
+            place_ask = True
+            bid_size = snapped_size
+            ask_size = snapped_size
+            
+            try:
+                position = client.get_position(config.TOKEN_SYMBOL)
+                if position:
+                    net_qty = float(position.get("netQuantity", 0))
+                    direction = position.get("direction", "")
+                    
+                    if net_qty >= config.MAX_POSITION_SIZE:
+                        logger.warning(f"Max position reached: {net_qty} {direction}. Entering reduce-only mode with max position size.")
+                        unwind_size = round(max(base_increment, round(net_qty / base_increment) * base_increment), decimals)
+                        if direction == "long":
+                            place_bid = False
+                            ask_size = unwind_size
+                        elif direction == "short":
+                            place_ask = False
+                            bid_size = unwind_size
+            except Exception as e:
+                logger.error(f"Failed to fetch position data: {e}")
+
+            # 4. Calculate Bid and Ask quotes
             # Spread is in basis points (1 bps = 0.01%)
             spread_pct = config.SPREAD_BPS / 10000.0
-            bid_price = current_price * (1 - spread_pct)
-            ask_price = current_price * (1 + spread_pct)
-            
-            # Format prices to 2 decimal places (adjust as needed for the specific token)
-            bid_price = round(bid_price, 2)
-            ask_price = round(ask_price, 2)
+            bid_price = round(current_price * (1 - spread_pct), 2)
+            ask_price = round(current_price * (1 + spread_pct), 2)
 
-            # 4. Place limit orders
+            # 5. Place limit orders conditionally
             try:
                 # Place BID
-                client.place_order(
-                    symbol=config.TOKEN_SYMBOL,
-                    side="BUY",
-                    order_type="LIMIT",
-                    price=bid_price,
-                    size=snapped_size
-                )
+                if place_bid:
+                    client.place_order(
+                        symbol=config.TOKEN_SYMBOL,
+                        side="BUY",
+                        order_type="LIMIT",
+                        price=bid_price,
+                        size=bid_size
+                    )
                 # Place ASK
-                client.place_order(
-                    symbol=config.TOKEN_SYMBOL,
-                    side="SELL",
-                    order_type="LIMIT",
-                    price=ask_price,
-                    size=snapped_size
-                )
+                if place_ask:
+                    client.place_order(
+                        symbol=config.TOKEN_SYMBOL,
+                        side="SELL",
+                        order_type="LIMIT",
+                        price=ask_price,
+                        size=ask_size
+                    )
             except Exception as e:
                 logger.error(f"Failed to place orders: {e}")
 

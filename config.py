@@ -11,6 +11,7 @@ TOKEN_SYMBOL = os.getenv("TOKEN_SYMBOL", "BTC-USD")
 INTERVAL = int(os.getenv("INTERVAL", "15"))
 SPREAD_BPS = float(os.getenv("SPREAD_BPS", "10"))
 ORDER_SIZE = float(os.getenv("ORDER_SIZE", "0.1"))
+MAX_POSITION_SIZE = float(os.getenv("MAX_POSITION_SIZE", "1.0"))
 
 def validate_config():
     if not API_KEY:
