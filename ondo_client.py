@@ -5,7 +5,8 @@ import time
 import hmac
 import hashlib
 from urllib.parse import urlparse
-
+import websocket
+import threading
 logger = logging.getLogger(__name__)
 
 class OndoPerpsClient:
@@ -131,3 +132,58 @@ class OndoPerpsClient:
                 if position.get("market") == market:
                     return position
         return None
+
+class OndoWSSClient:
+    def __init__(self, symbol: str, on_price_update):
+        self.symbol = f"{symbol}.P" if not symbol.endswith(".P") else symbol
+        self.url = "wss://api.ondoperps.xyz/ws"
+        self.ws = None
+        self.wst = None
+        self.on_price_update = on_price_update
+
+    def _on_message(self, ws, message):
+        try:
+            data = json.loads(message)
+            if data.get("type") == "update" and data.get("channel") == "topOfBooksPerps":
+                for item in data.get("data", []):
+                    if item.get("market") == self.symbol:
+                        asks = item.get("asks", [])
+                        bids = item.get("bids", [])
+                        if asks and bids:
+                            best_ask = float(asks[0][0])
+                            best_bid = float(bids[0][0])
+                            mid_price = (best_ask + best_bid) / 2.0
+                            self.on_price_update(mid_price)
+        except Exception as e:
+            logger.error(f"Error parsing WSS message: {e}")
+
+    def _on_error(self, ws, error):
+        logger.error(f"WSS Error: {error}")
+
+    def _on_close(self, ws, close_status_code, close_msg):
+        logger.info("WSS Connection Closed")
+
+    def _on_open(self, ws):
+        logger.info(f"WSS Connected. Subscribing to {self.symbol} topOfBooksPerps...")
+        payload = {
+            "op": "subscribe",
+            "channel": "topOfBooksPerps",
+            "markets": [self.symbol]
+        }
+        ws.send(json.dumps(payload))
+
+    def start(self):
+        self.ws = websocket.WebSocketApp(
+            self.url,
+            on_open=self._on_open,
+            on_message=self._on_message,
+            on_error=self._on_error,
+            on_close=self._on_close
+        )
+        self.wst = threading.Thread(target=self.ws.run_forever)
+        self.wst.daemon = True
+        self.wst.start()
+
+    def stop(self):
+        if self.ws:
+            self.ws.close()
