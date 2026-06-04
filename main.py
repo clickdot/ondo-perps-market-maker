@@ -34,10 +34,11 @@ def run_bot():
     decimals = len(str(base_increment).split('.')[-1]) if '.' in str(base_increment) else 0
 
     # Setup WSS State
-    shared_state = {"price": None}
+    shared_state = {"price": None, "last_update": 0}
     
     def on_price_update(new_price):
         shared_state["price"] = new_price
+        shared_state["last_update"] = time.time()
 
     wss_client = OndoWSSClient(config.TOKEN_SYMBOL, on_price_update)
     wss_client.start()
@@ -65,6 +66,11 @@ def run_bot():
                 
                 if current_price is None or current_price <= 0:
                     logger.error("Invalid price from WSS. Skipping cycle.")
+                    time.sleep(config.INTERVAL)
+                    continue
+                    
+                if time.time() - shared_state["last_update"] > 15:
+                    logger.warning("WSS price is stale (>15 seconds). Waiting for fresh data...")
                     time.sleep(config.INTERVAL)
                     continue
                     

@@ -139,6 +139,7 @@ class OndoWSSClient:
         self.url = "wss://api.ondoperps.xyz/ws"
         self.ws = None
         self.wst = None
+        self._running = False
         self.on_price_update = on_price_update
 
     def _on_message(self, ws, message):
@@ -172,18 +173,28 @@ class OndoWSSClient:
         }
         ws.send(json.dumps(payload))
 
+    def _run_loop(self):
+        self._running = True
+        while self._running:
+            self.ws = websocket.WebSocketApp(
+                self.url,
+                on_open=self._on_open,
+                on_message=self._on_message,
+                on_error=self._on_error,
+                on_close=self._on_close
+            )
+            # ping_interval ensures we detect silent disconnects
+            self.ws.run_forever(ping_interval=20, ping_timeout=10)
+            if self._running:
+                logger.warning("WSS disconnected, reconnecting in 5 seconds...")
+                time.sleep(5)
+
     def start(self):
-        self.ws = websocket.WebSocketApp(
-            self.url,
-            on_open=self._on_open,
-            on_message=self._on_message,
-            on_error=self._on_error,
-            on_close=self._on_close
-        )
-        self.wst = threading.Thread(target=self.ws.run_forever)
+        self.wst = threading.Thread(target=self._run_loop)
         self.wst.daemon = True
         self.wst.start()
 
     def stop(self):
+        self._running = False
         if self.ws:
             self.ws.close()
